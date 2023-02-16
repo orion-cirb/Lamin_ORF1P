@@ -15,6 +15,7 @@ import ij.plugin.Duplicator;
 import ij.plugin.RGBStackMerge;
 import ij.plugin.ZProjector;
 import ij.plugin.filter.Analyzer;
+import ij.process.ImageConverter;
 import ij.process.ImageProcessor;
 import java.awt.Color;
 import java.awt.Font;
@@ -55,7 +56,7 @@ public class Lamin_ORF1P_Tools {
     public int cellPoseDiameter = 100;
     public String cellPoseModel = "cyto2";
     public String cellPoseEnvDirPath = (IJ.isWindows()) ? System.getProperty("user.home")+"\\miniconda3\\envs\\CellPose" : "/opt/miniconda3/envs/cellpose";
-    public double minNucVol= 500;
+    public double minNucVol= 1000;
     public double maxNucVol = 15000; 
     
     private final CLIJ2 clij2 = CLIJ2.getInstance();
@@ -239,7 +240,7 @@ public class Lamin_ORF1P_Tools {
      * - apply CellPose in 2D slice by slice 
      * - let CellPose reconstruct cells in 3D using the stitch threshold parameters
      */
-    public ArrayList<Nucleus> cellposeDetection(ImagePlus img, boolean resize, String cellposeModel, int channel, int diameter, double stitchThreshold, boolean zFilter) throws IOException{
+    public ArrayList<Nucleus> cellposeDetection(ImagePlus img, boolean resize, String cellposeModel, int diameter, double stitchThreshold, boolean zFilter) throws IOException{
         float resizeFactor;
         ImagePlus imgResized;
         if (resize) {
@@ -251,7 +252,7 @@ public class Lamin_ORF1P_Tools {
         }
 
         // Define CellPose settings
-        CellposeTaskSettings settings = new CellposeTaskSettings(cellposeModel, channel, (int)(diameter*resizeFactor), cellPoseEnvDirPath);
+        CellposeTaskSettings settings = new CellposeTaskSettings(cellposeModel, 1, (int)(diameter*resizeFactor), cellPoseEnvDirPath);
         settings.setStitchThreshold(stitchThreshold);
         settings.useGpu(true);
        
@@ -270,6 +271,7 @@ public class Lamin_ORF1P_Tools {
         if (zFilter)
             pop = zFilterPop(pop);
         popFilterSize(pop, minNucVol, maxNucVol);
+        pop.resetLabels();
         System.out.println(pop.getNbObjects() + " detections remaining after size filtering");
         
         ArrayList<Nucleus> nuclei = new ArrayList<Nucleus>();
@@ -303,7 +305,6 @@ public class Lamin_ORF1P_Tools {
      */
     public void popFilterSize(Objects3DIntPopulation pop, double min, double max) {
         pop.getObjects3DInt().removeIf(p -> (new MeasureVolume(p).getVolumeUnit() < min) || (new MeasureVolume(p).getVolumeUnit() > max));
-        pop.resetLabels();
     }
     
     
@@ -351,11 +352,12 @@ public class Lamin_ORF1P_Tools {
         }
         // Save global parameters
         HashMap<String, Double> globalParams = new HashMap<>();
-        globalParams.put("allNucVol", allNucVol);
-        globalParams.put("nucLaminIntSum", nucLaminIntSum);
-        globalParams.put("nucORF1PIntSum", nucORF1PIntSum);
-        globalParams.put("bgORF1P", bgORF1P);
+        globalParams.put("nucNb", (double) nuclei.size());
+        globalParams.put("nucVol", allNucVol);
         globalParams.put("bgLamin", bgLamin);
+        globalParams.put("nucLaminIntSum", nucLaminIntSum);
+        globalParams.put("bgORF1P", bgORF1P);
+        globalParams.put("nucORF1PIntSum", nucORF1PIntSum);
         globalParams.put("cytoORF1PVol", cytoVol);
         globalParams.put("cytoORF1PInt", cytoInt);
         
@@ -441,6 +443,8 @@ public class Lamin_ORF1P_Tools {
             IJ.setAutoThreshold(mask, "Default");
             IJ.run(mask, "Create Selection", "");
             Roi roi = mask.getRoi();
+            
+            img.setSlice(n);
             img.setRoi(roi);
             rt.reset();
             analyzer.measure();
@@ -456,19 +460,19 @@ public class Lamin_ORF1P_Tools {
      * Draw results in images
      */
     public void drawResults(ArrayList<Nucleus> nuclei, ImagePlus imgCyto, ImagePlus img, String imgName, String outDir) {
-        ImageHandler imgObj1 = ImageHandler.wrap(new Duplicator().run(img)).createSameDimensions();
-
+        ImageHandler imgNuc = ImageHandler.wrap(new Duplicator().run(img)).createSameDimensions();
         for (Nucleus nucleus: nuclei)
-            nucleus.nucleus.drawObject(imgObj1);
+            nucleus.nucleus.drawObject(imgNuc);
+        new ImageConverter(imgCyto).convertToGray16();
         
-        ImagePlus[] imgColors1 = {null, imgCyto, imgObj1.getImagePlus(), img};
-        ImagePlus imgObjects1 = new RGBStackMerge().mergeHyperstacks(imgColors1, true);
-        imgObjects1.setCalibration(cal);
+        ImagePlus[] imgColors = {null, imgCyto, imgNuc.getImagePlus(), img};
+        ImagePlus imgObjects = new RGBStackMerge().mergeHyperstacks(imgColors, true);
+        imgObjects.setCalibration(cal);
+        FileSaver ImgObjectsFile1 = new FileSaver(imgObjects);
+        ImgObjectsFile1.saveAsTiff(outDir + imgName + ".tif");
         
-        FileSaver ImgObjectsFile1 = new FileSaver(imgObjects1);
-        ImgObjectsFile1.saveAsTiff(outDir + imgName + ".tif"); 
-        flush_close(imgObjects1);
-        imgObj1.closeImagePlus();
-       
+        flush_close(imgObjects);
+        imgNuc.closeImagePlus();
     }
+    
 }

@@ -19,8 +19,6 @@ public class Nucleus {
     
     public void setParams(double nucLabel, double nucVol, double nucComp, double nucSph, double nucEllElong, double nucEllFlat, double nucLaminInt,
             double nucIntORF1P) {
-        
-        // Nucleus
         params.put("nucIndex", nucLabel);
         params.put("nucVol", nucVol);
         params.put("nucComp", nucComp);

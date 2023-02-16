@@ -3,7 +3,6 @@ package Lamin_ORF1P;
 import Lamin_Tools.Nucleus;
 import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.WaitForUserDialog;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -69,15 +68,16 @@ public class Lamin_ORF1P implements PlugIn {
             
             // Write header for nuclei parameters file
             String header = "Image name\tNucleus ID\tNucleus volume (µm3)\tNucleus compactness\tNucleus sphericity\tNucleus elongation\t"
-                    + "Nucleus flatness\tNucleus bg corr. intensity in lamin channel\tNucleus bg corr. intensity in ORF1P channel\n";
+                    + "Nucleus flatness\tNucleus bg corr. total intensity in lamin channel\tNucleus bg corr. total intensity in ORF1P channel\n";
             FileWriter fwResults = new FileWriter(outDirResults + "detailed_results.xls", false);
             results = new BufferedWriter(fwResults);
             results.write(header);
             results.flush();
             
             // Write header for global nuclei parameters file
-            header = "Image name\tNuclei total volume (µm3)\tNuclei bg corr. total intensity in lamin channel\tNuclei bg corr. total intensity in ORF1P channel\t"
-                    + "ORF1P background\tLamin background\tORF1P cytoplasm total volume (µm3)\tORF1P cytoplasm bg corr. total intensity\n";
+            header = "Image name\tNb nuclei\tNuclei total volume (µm3)\tLamin background\tNuclei bg corr. total intensity in lamin channel\t"
+                    + "ORF1P background\tNuclei bg corr. total intensity in ORF1P channel\t"
+                    + "ORF1P cytoplasm total volume (µm3)\tORF1P cytoplasm bg corr. total intensity\n";
             FileWriter fwGlobalResults = new FileWriter(outDirResults + "global_results.xls", false);
             globalResults = new BufferedWriter(fwGlobalResults);
             globalResults.write(header);
@@ -124,7 +124,7 @@ public class Lamin_ORF1P implements PlugIn {
                 
                 // Find DAPI nuclei
                 System.out.println("Finding nuclei....");
-                ArrayList<Nucleus> nuclei = tools.cellposeDetection(imgNucleus, true, "cyto2", 1, 100, 0.75, true);
+                ArrayList<Nucleus> nuclei = tools.cellposeDetection(imgNucleus, true, "cyto2", 100, 0.5, true);
                 System.out.println(nuclei.size() + " " + chs[0] + " nuclei found");
                 tools.flush_close(imgNucleus);
                 
@@ -163,9 +163,8 @@ public class Lamin_ORF1P implements PlugIn {
                 }
                 
                 // Write global parameters results
-                globalResults.write(rootName+"\t"+globalParams.get("allNucVol")+"\t"+globalParams.get("nucLaminIntSum")+
-                        "\t"+globalParams.get("nucORF1PIntSum")+"\t"+globalParams.get("bgORF1P")+"\t"+globalParams.get("bgLamin")+
-                        "\t"+globalParams.get("cytoORF1PVol")+"\t"+globalParams.get("cytoORF1PInt")+"\n");
+                globalResults.write(rootName+"\t"+globalParams.get("nucNb").intValue()+"\t"+globalParams.get("nucVol")+"\t"+globalParams.get("bgLamin")+
+                        "\t"+globalParams.get("nucLaminIntSum")+"\t"+globalParams.get("bgORF1P")+"\t"+globalParams.get("nucORF1PIntSum")+"\t"+globalParams.get("cytoORF1PVol")+"\t"+globalParams.get("cytoORF1PInt")+"\n");
                 globalResults.flush();
                 
                 if (imgLamin != null)
