@@ -247,7 +247,7 @@ public class Lamin_ORF1P_Tools {
             imgResized = img.resize((int)(img.getWidth()*resizeFactor), (int)(img.getHeight()*resizeFactor), 1, "none");
         } else {
             resizeFactor = 1;
-            imgResized = new Duplicator().run(img);
+            imgResized = new Duplicator().run(img).duplicate();
         }
 
         // Define CellPose settings
@@ -313,7 +313,6 @@ public class Lamin_ORF1P_Tools {
     public HashMap<String, Double> tagCells(ImagePlus imgORF1P, ImagePlus imgLamin, ImagePlus imgCyto, ArrayList<Nucleus> nuclei) {
         ImageHandler imhORF1P = ImageHandler.wrap(imgORF1P);
         ImageHandler imhLamin = (imgLamin == null) ? null : ImageHandler.wrap(imgLamin);
-        
         // Compute background
         double bgORF1P = findBackground(imgORF1P);
         double bgLamin = findBackground(imgLamin);
@@ -321,8 +320,8 @@ public class Lamin_ORF1P_Tools {
         // Get cells cytoplasm parameters
         double[] cytoParams = computeCytoParameters(imgCyto, imgORF1P);
         double cytoVol = cytoParams[0];
-        double cytoInt = cytoParams[1] - bgORF1P*cytoVol;
-        
+        double cytoInt = cytoParams[1] - bgORF1P*cytoVol/pixVol;
+
         // Save cells parameters
         double allNucVol = 0;
         double nucLaminIntSum = 0;
@@ -341,7 +340,6 @@ public class Lamin_ORF1P_Tools {
             double nucORF1PInt = new MeasureIntensity(nucObj, imhORF1P).getValueMeasurement(MeasureIntensity.INTENSITY_SUM);
             nucORF1PInt = nucORF1PInt - bgORF1P*nucVol/pixVol;
             nucORF1PIntSum += nucORF1PInt;
-            
             double nucLaminInt = 0;
             if (imhLamin != null) {
                 nucLaminInt = new MeasureIntensity(nucObj, imhLamin).getValueMeasurement(MeasureIntensity.INTENSITY_SUM);
@@ -351,7 +349,6 @@ public class Lamin_ORF1P_Tools {
             
             nucleus.setParams(nucObj.getLabel(), nucVol, nucComp, nucSph, nucElongation, nucFlatness, nucLaminInt, nucORF1PInt);
         }
-        
         // Save global parameters
         HashMap<String, Double> globalParams = new HashMap<>();
         globalParams.put("allNucVol", allNucVol);
@@ -401,7 +398,7 @@ public class Lamin_ORF1P_Tools {
      * Detect cytoplasm and compute its volume
      */    
     public ImagePlus findCellsCyto(ImagePlus img, ArrayList<Nucleus> nuclei) {
-        ImagePlus imgIn = new Duplicator().run(img);
+        ImagePlus imgIn = new Duplicator().run(img).duplicate();
         ImagePlus imgTh = gaussian_filter(imgIn, 4, 4);
         imgTh.setSlice(imgTh.getNSlices()/2);
         IJ.setAutoThreshold(imgTh, "Huang dark");
@@ -444,11 +441,7 @@ public class Lamin_ORF1P_Tools {
             IJ.setAutoThreshold(mask, "Default");
             IJ.run(mask, "Create Selection", "");
             Roi roi = mask.getRoi();
-            ImageProcessor ip = img.getImageStack().getProcessor(n);
-            ip.setRoi(roi);
-            ip.setBackgroundValue(0);
-            ip.setColor(0);
-            ip.fillOutside(roi);
+            img.setRoi(roi);
             rt.reset();
             analyzer.measure();
             area += rt.getValue("Area", 0); 
