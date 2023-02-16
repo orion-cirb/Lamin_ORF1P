@@ -7,6 +7,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.Roi;
+import ij.gui.WaitForUserDialog;
 import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
@@ -241,13 +242,12 @@ public class Lamin_ORF1P_Tools {
     public ArrayList<Nucleus> cellposeDetection(ImagePlus img, boolean resize, String cellposeModel, int channel, int diameter, double stitchThreshold, boolean zFilter) throws IOException{
         float resizeFactor;
         ImagePlus imgResized;
-        if (resize && (img.getWidth() > 1024)) {
+        if (resize) {
             resizeFactor = 0.5f;
             imgResized = img.resize((int)(img.getWidth()*resizeFactor), (int)(img.getHeight()*resizeFactor), 1, "none");
         } else {
             resizeFactor = 1;
             imgResized = new Duplicator().run(img);
-            resize = false;
         }
 
         // Define CellPose settings
@@ -310,7 +310,7 @@ public class Lamin_ORF1P_Tools {
     /**
      * Compute cells parameters
      */
-    public HashMap<String, Double> tagCells(ImagePlus imgORF1P, ImagePlus imgLamin, ArrayList<Nucleus> nuclei) {
+    public HashMap<String, Double> tagCells(ImagePlus imgORF1P, ImagePlus imgLamin, ImagePlus imgCyto, ArrayList<Nucleus> nuclei) {
         ImageHandler imhORF1P = ImageHandler.wrap(imgORF1P);
         ImageHandler imhLamin = (imgLamin == null) ? null : ImageHandler.wrap(imgLamin);
         
@@ -319,7 +319,7 @@ public class Lamin_ORF1P_Tools {
         double bgLamin = findBackground(imgLamin);
         
         // Get cells cytoplasm parameters
-        double[] cytoParams = findCellsCyto(imgORF1P, nuclei);
+        double[] cytoParams = computeCytoParameters(imgCyto, imgORF1P);
         double cytoVol = cytoParams[0];
         double cytoInt = cytoParams[1] - bgORF1P*cytoVol;
         
@@ -378,7 +378,6 @@ public class Lamin_ORF1P_Tools {
       ImagePlus imgProj = doZProjection(img, ZProjector.MIN_METHOD);
       ImageProcessor imp = imgProj.getProcessor();
       double bg = imp.getStatistics().median;
-      System.out.println("Background = " + bg);
       flush_close(imgProj);
       return(bg);
     }
@@ -401,43 +400,22 @@ public class Lamin_ORF1P_Tools {
     /**
      * Detect cytoplasm and compute its volume
      */    
-    public double[] findCellsCyto(ImagePlus img, ArrayList<Nucleus> nuclei) {
-        ImagePlus imgCyto = new Duplicator().run(img);
-        ImagePlus imgG = gaussian_filter(imgCyto, 4, 4);
-        ImageHandler imh = ImageHandler.wrap(imgG);
+    public ImagePlus findCellsCyto(ImagePlus img, ArrayList<Nucleus> nuclei) {
+        ImagePlus imgIn = new Duplicator().run(img);
+        ImagePlus imgTh = gaussian_filter(imgIn, 4, 4);
+        imgTh.setSlice(imgTh.getNSlices()/2);
+        IJ.setAutoThreshold(imgTh, "Huang dark");
+        Prefs.blackBackground = false;
+        IJ.run(imgTh, "Convert to Mask", "method=Huang background=Dark");
+        IJ.run(imgTh, "Median...", "radius=8 stack");
+
+        ImageHandler imh = ImageHandler.wrap(imgTh);
         for (Nucleus nucleus : nuclei)
             nucleus.nucleus.drawObject(imh, 0);
-        imgG = imh.getImagePlus();
-        imgG.setSlice(imgG.getNSlices()/2);
-        IJ.setAutoThreshold(imgG, "Moments dark");
-        Prefs.blackBackground = false;
-        IJ.run(imgG, "Convert to Mask", "method=Moments background=Dark");
-        
-        ResultsTable rt = new ResultsTable();
-        Analyzer analyzer = new Analyzer(imgCyto, Analyzer.AREA+Analyzer.INTEGRATED_DENSITY, rt);
-        double area = 0;
-        double intSum = 0;
-        for (int n = 1; n <= imgG.getNSlices(); n++) {
-            imgG.setSlice(n);
-            IJ.setAutoThreshold(imgG, "Default");
-            IJ.run(imgG, "Create Selection", "");
-            Roi roi = imgG.getRoi();
-            ImageProcessor ip = imgCyto.getImageStack().getProcessor(n);
-            ip.setRoi(roi);
-            ip.setBackgroundValue(0);
-            ip.setColor(0);
-            ip.fillOutside(roi);
-            rt.reset();
-            analyzer.measure();
-            area += rt.getValue("Area", 0); 
-            intSum += rt.getValue("RawIntDen",0);
-        }
-        
-        flush_close(imgG);
-        flush_close(imgCyto);
-        
-        double[] volInt = {area*cal.pixelDepth, intSum};
-        return(volInt);
+        imgTh = imh.getImagePlus();
+
+        flush_close(imgIn);
+        return(imgTh);
     }
     
     
@@ -450,26 +428,52 @@ public class Lamin_ORF1P_Tools {
        clij2.gaussianBlur3D(imgCL, imgCLG, sizeXY, sizeXY, sizeZ);
        ImagePlus imgG = clij2.pull(imgCLG);
        imgG.setCalibration(cal);
+       clij2.release(imgCL);
+       clij2.release(imgCLG);
        return(imgG);
     } 
-   
+    
+    
+    public double[] computeCytoParameters(ImagePlus mask, ImagePlus img) {
+        ResultsTable rt = new ResultsTable();
+        Analyzer analyzer = new Analyzer(img, Analyzer.AREA+Analyzer.INTEGRATED_DENSITY, rt);
+        double area = 0;
+        double intSum = 0;
+        for (int n = 1; n <= mask.getNSlices(); n++) {
+            mask.setSlice(n);
+            IJ.setAutoThreshold(mask, "Default");
+            IJ.run(mask, "Create Selection", "");
+            Roi roi = mask.getRoi();
+            ImageProcessor ip = img.getImageStack().getProcessor(n);
+            ip.setRoi(roi);
+            ip.setBackgroundValue(0);
+            ip.setColor(0);
+            ip.fillOutside(roi);
+            rt.reset();
+            analyzer.measure();
+            area += rt.getValue("Area", 0); 
+            intSum += rt.getValue("RawIntDen",0);
+        }
+        double[] volInt = {area*cal.pixelDepth, intSum};
+        return(volInt);
+    }
+    
     
     /**
      * Draw results in images
      */
-    public void drawResults(ArrayList<Nucleus> nuclei, ImagePlus img, String imgName, String outDir) {
+    public void drawResults(ArrayList<Nucleus> nuclei, ImagePlus imgCyto, ImagePlus img, String imgName, String outDir) {
         ImageHandler imgObj1 = ImageHandler.wrap(new Duplicator().run(img)).createSameDimensions();
 
         for (Nucleus nucleus: nuclei)
             nucleus.nucleus.drawObject(imgObj1);
         
-        ImagePlus[] imgColors1 = {imgObj1.getImagePlus(), null, null, img};
+        ImagePlus[] imgColors1 = {null, imgCyto, imgObj1.getImagePlus(), img};
         ImagePlus imgObjects1 = new RGBStackMerge().mergeHyperstacks(imgColors1, true);
-        IJ.run(imgObjects1, "glasbey on dark", "");
         imgObjects1.setCalibration(cal);
         
         FileSaver ImgObjectsFile1 = new FileSaver(imgObjects1);
-        ImgObjectsFile1.saveAsTiff(outDir + imgName + "_nuclei.tif"); 
+        ImgObjectsFile1.saveAsTiff(outDir + imgName + ".tif"); 
         flush_close(imgObjects1);
         imgObj1.closeImagePlus();
        

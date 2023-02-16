@@ -3,6 +3,7 @@ package Lamin_ORF1P;
 import Lamin_Tools.Nucleus;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.WaitForUserDialog;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -117,36 +118,40 @@ public class Lamin_ORF1P implements PlugIn {
                 options.setColorMode(ImporterOptions.COLOR_MODE_GRAYSCALE);
 
                 // Open DAPI channel
-                System.out.println("- Analyzing " + chs[0] + " channel -");
+                System.out.println("- Analyzing " + chs[0] + " nuclei channel -");
                 int indexCh = ArrayUtils.indexOf(channels, chs[0]);
                 ImagePlus imgNucleus = BF.openImagePlus(options)[indexCh];
                 
                 // Find DAPI nuclei
-                System.out.println("Finding " + chs[0] + " nuclei....");
-                ArrayList<Nucleus> nuclei = tools.cellposeDetection(imgNucleus, true, "cyto2", 1, 100, 0.5, true);
+                System.out.println("Finding nuclei....");
+                ArrayList<Nucleus> nuclei = tools.cellposeDetection(imgNucleus, true, "cyto2", 1, 100, 0.75, true);
                 System.out.println(nuclei.size() + " " + chs[0] + " nuclei found");
                 tools.flush_close(imgNucleus);
                 
                 // Open ORF1P channel
-                System.out.println("- Analyzing " + chs[2] + " channel -");
+                System.out.println("- Analyzing " + chs[2] + " ORF1P channel -");
                 indexCh = ArrayUtils.indexOf(channels, chs[2]);
                 ImagePlus imgORF1P = BF.openImagePlus(options)[indexCh];
+                
+                // Threshold cytoplasm
+                System.out.println("Finding cytoplasm....");
+                ImagePlus imgCyto = tools.findCellsCyto(imgORF1P, nuclei);
                 
                 // Open Lamin channel (if provided)
                 ImagePlus imgLamin = null;
                 if (!chs[1].equals("None")) {
-                    System.out.println("- Analyzing " + chs[1] + " channel -");
+                    System.out.println("- Analyzing " + chs[1] + " lamin channel -");
                     indexCh = ArrayUtils.indexOf(channels, chs[1]);
                     imgLamin = BF.openImagePlus(options)[indexCh];
                 }
                
                 // Tag nuclei with parameters
                 System.out.println("- Measuring cells parameters -");
-                HashMap<String, Double> globalParams = tools.tagCells(imgORF1P, imgLamin, nuclei);
+                HashMap<String, Double> globalParams = tools.tagCells(imgORF1P, imgLamin, imgCyto, nuclei);
                 
                 // Draw results image
                 System.out.println("- Saving results -");
-                tools.drawResults(nuclei, imgORF1P, rootName, outDirResults);
+                tools.drawResults(nuclei, imgCyto, imgORF1P, rootName, outDirResults);
                              
                 // Write nuclei parameters results
                 for (Nucleus nucleus: nuclei) {
@@ -166,6 +171,7 @@ public class Lamin_ORF1P implements PlugIn {
                 if (imgLamin != null)
                     tools.flush_close(imgLamin);
                 tools.flush_close(imgORF1P);
+                tools.flush_close(imgCyto);
             }            
             results.close();
             globalResults.close();
