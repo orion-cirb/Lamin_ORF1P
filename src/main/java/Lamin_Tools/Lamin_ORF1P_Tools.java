@@ -316,7 +316,7 @@ public class Lamin_ORF1P_Tools {
         ImageHandler imhLamin = (imgLamin == null) ? null : ImageHandler.wrap(imgLamin);
         // Compute background
         double bgORF1P = findBackground(imgORF1P);
-        double bgLamin = findBackground(imgLamin);
+        double bgLamin = (imgLamin == null) ? 0 : findBackground(imgLamin);
         
         // Get cells cytoplasm parameters
         double[] cytoParams = computeCytoParameters(imgCyto, imgORF1P);
