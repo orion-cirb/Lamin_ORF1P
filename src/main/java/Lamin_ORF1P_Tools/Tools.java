@@ -1,13 +1,12 @@
-package Lamin_Tools;
+package Lamin_ORF1P_Tools;
 
-import Cellpose.CellposeSegmentImgPlusAdvanced;
-import Cellpose.CellposeTaskSettings;
+import Lamin_ORF1P_Tools.Cellpose.CellposeSegmentImgPlusAdvanced;
+import Lamin_ORF1P_Tools.Cellpose.CellposeTaskSettings;
 import fiji.util.gui.GenericDialogPlus;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.Roi;
-import ij.gui.WaitForUserDialog;
 import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
@@ -45,7 +44,7 @@ import net.haesleinhuepf.clij2.CLIJ2;
 /**
  * @author phm
  */
-public class Lamin_ORF1P_Tools {
+public class Tools {
     public final ImageIcon icon = new ImageIcon(this.getClass().getResource("/Orion_icon.png"));
     
     public Calibration cal = new Calibration();

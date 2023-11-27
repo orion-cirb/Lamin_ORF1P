@@ -1,6 +1,5 @@
-package Lamin_ORF1P;
-
-import Lamin_Tools.Nucleus;
+import Lamin_ORF1P_Tools.Tools;
+import Lamin_ORF1P_Tools.Nucleus;
 import ij.IJ;
 import ij.ImagePlus;
 import java.io.BufferedWriter;
@@ -35,7 +34,7 @@ import org.scijava.util.ArrayUtils;
  */
 public class Lamin_ORF1P implements PlugIn {
     
-    Lamin_Tools.Lamin_ORF1P_Tools tools = new Lamin_Tools.Lamin_ORF1P_Tools();
+    Tools tools = new Tools();
     private String imageDir = "";
     public  String outDirResults = "";
     public  String rootName = "";

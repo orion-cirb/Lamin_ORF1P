@@ -1,4 +1,4 @@
-package Cellpose;
+package Lamin_ORF1P_Tools.Cellpose;
 
 
 public class CellposeTaskSettings {
